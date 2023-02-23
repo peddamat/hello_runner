@@ -55,15 +55,13 @@ dependencies = [
 [[package]]
 name = "hello"
 version = "0.1.0"
-dependencies = [
- "prefer-dynamic",
-]
 
 [[package]]
 name = "hello_runner"
 version = "0.1.0"
 dependencies = [
  "hello",
+ "prefer-dynamic",
 ]
 
 [[package]]

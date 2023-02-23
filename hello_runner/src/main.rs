@@ -1,4 +1,4 @@
-#[link(name = "hello", kind="dylib")]
+#[link(name = "hello.dll", kind="dylib")]
 extern {
     fn add(left: usize, right: usize) -> usize;
 }

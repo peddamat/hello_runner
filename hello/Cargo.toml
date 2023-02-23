@@ -6,9 +6,3 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 crate-type = ["cdylib"]
-
-[dependencies]
-prefer-dynamic = "0"
-
-[dev-dependencies]
-prefer-dynamic = { version = "0", features = ["link-test"] }
