@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 hello = { path = "../hello" }
-prefer-dynamic = "0"
+# prefer-dynamic = "0"
 
-[dev-dependencies]
-prefer-dynamic = { version = "0", features = ["link-test"] }
+# [dev-dependencies]
+# prefer-dynamic = { version = "0", features = ["link-test"] }
