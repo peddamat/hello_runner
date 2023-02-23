@@ -1,6 +1,6 @@
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Gdi::*,
-    Win32::System::LibraryLoader::GetModuleHandleA, Win32::UI::WindowsAndMessaging::*,
+    Win32::System::LibraryLoader::{GetModuleHandleA, LoadLibraryA}, Win32::UI::WindowsAndMessaging::*,
 };
 use windows::Win32::{UI::Shell::{DefSubclassProc, SetWindowSubclass}};
 
@@ -40,7 +40,7 @@ fn main() -> Result<()> {
             None,
         );
 
-        SetWindowSubclass( handle, Some(subclass_proc), 1, 0,);
+        LoadLibraryA(PCSTR("hello.dll\0".as_ptr()));
 
         let mut message = MSG::default();
 
@@ -50,31 +50,6 @@ fn main() -> Result<()> {
 
         Ok(())
     }
-}
-
-extern "system" fn subclass_proc(window: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _subclass_id: usize, _ref_data: usize) -> LRESULT {
-    if msg == WM_PAINT {
-        unsafe {
-            let mut msg =  String::from("ZOMG!");
-            let mut ps = PAINTSTRUCT::default();
-            let psp = &mut ps as *mut PAINTSTRUCT;
-            let rectp = &mut ps.rcPaint as *mut RECT;
-            let hdc = BeginPaint(window, psp);
-            let brush = CreateSolidBrush(COLORREF(0x0000F0F0)); // yellow
-            // All painting occurs here, between BeginPaint and EndPaint.
-            FillRect(hdc, &ps.rcPaint, brush);
-            DrawTextA(hdc,
-                msg.as_bytes_mut(),
-                rectp,
-                DT_SINGLELINE | DT_CENTER | DT_VCENTER
-            );
-            EndPaint(window, &ps);
-        }
-
-        return LRESULT(0);
-    }
-
-    unsafe { DefSubclassProc(window, msg, wparam, lparam) }
 }
 
 extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
