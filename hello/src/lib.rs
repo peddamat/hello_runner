@@ -1,3 +1,4 @@
+use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows::{ Win32::Foundation::*, Win32::System::SystemServices::*, };
 use windows::{ core::*, Win32::UI::WindowsAndMessaging::MessageBoxA, };
 use windows::{ Win32::Graphics::Gdi::*, Win32::UI::WindowsAndMessaging::*, };
@@ -9,50 +10,16 @@ use std::mem::MaybeUninit;
 use log::{info, trace};
 
 use windows::Win32::{
-    Foundation::{HANDLE, CloseHandle},
-    System::{
-        Threading::{
-            NtQueryInformationThread, OpenThread, ResumeThread, SuspendThread, THREADINFOCLASS,
-            THREAD_ACCESS_RIGHTS,
-        },
+    Foundation::{BOOL, HINSTANCE, LPARAM, LRESULT, WPARAM},
+    System::{SystemServices::DLL_PROCESS_ATTACH,},
+    UI::WindowsAndMessaging::{
+        CallNextHookEx, SetWindowsHookExW, HHOOK, MB_OK, MSG, WH_GETMESSAGE, WH_CALLWNDPROC,
+        WM_COMMAND,
     },
 };
+use std::mem::transmute;
 
-use windows::Win32::System::Threading::THREAD_ALL_ACCESS;
-use std::{error, mem};
-
-use windows::Win32::{
-    System::{
-        Diagnostics::Debug::{
-            GetThreadContext, ReadProcessMemory, SetThreadContext, Wow64GetThreadContext,
-            Wow64SetThreadContext, WriteProcessMemory, CONTEXT, WOW64_CONTEXT,
-        },
-        // Memory::{
-        //     VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, VirtualQueryEx,
-        //     MEMORY_BASIC_INFORMATION, PAGE_PROTECTION_FLAGS, VIRTUAL_ALLOCATION_TYPE,
-        //     VIRTUAL_FREE_TYPE,
-        // },
-        // Threading::{
-        //     GetCurrentProcess, GetCurrentProcessId, NtQueryInformationProcess, OpenProcess,
-        //     ProcessBasicInformation, ProcessWow64Information, LPTHREAD_START_ROUTINE,
-        //     PROCESSINFOCLASS, PROCESS_ACCESS_RIGHTS, PROCESS_BASIC_INFORMATION,
-        //     THREAD_CREATION_FLAGS,
-        // },
-        // WindowsProgramming::{
-        //     NtQuerySystemInformation, SystemProcessInformation, SYSTEM_INFORMATION_CLASS,
-        //     SYSTEM_PROCESS_INFORMATION,
-        // },
-    },
-};
-
-// Basically these constants are DWORDs for the context.ContextFlags to receive and assign to the CONTEXT struct.
-// Why u32? DWORD = c_ulong = u32 :)
-// Thanks to https://github.com/retep998/winapi-rs/blob/0.3/src/um/winnt.rs
-const CONTEXT_AMD64: u32 = 0x00100000;
-const CONTEXT_CONTROL: u32 = CONTEXT_AMD64 | 0x00000001;
-const CONTEXT_INTEGER: u32 = CONTEXT_AMD64 | 0x00000002;
-const CONTEXT_FLOATING_POINT: u32 = CONTEXT_AMD64 | 0x00000008;
-const CONTEXT_FULL: u32 = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_FLOATING_POINT;
+static mut HOOK: HHOOK = HHOOK(0);
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
@@ -63,7 +30,7 @@ extern "system" fn DllMain(
     -> bool
 {
     match call_reason {
-        DLL_PROCESS_ATTACH => attach(),
+        DLL_PROCESS_ATTACH => attach(dll_module),
         DLL_PROCESS_DETACH => (),
         _ => ()
     }
@@ -71,7 +38,7 @@ extern "system" fn DllMain(
     true
 }
 
-fn attach() {
+fn attach(dll_module: HINSTANCE) {
     eventlog::init("Example Log", log::Level::Trace).unwrap();
     info!("Attach called!");
     unsafe {
@@ -80,7 +47,6 @@ fn attach() {
         info!("Thread id: {}", tid);
         info!("Process id: {}", pid);
 
-        // Get handle to main window
         let hwnd = find_window_by_pid(pid).unwrap();
         info!("Found window handle");
 
@@ -89,42 +55,64 @@ fn attach() {
         let gui_tid = GetWindowThreadProcessId(hwnd, Some(pid.as_mut_ptr()));
         info!("GUI Thread id: {}", gui_tid);
 
-        let local_handle = OpenThread(THREAD_ALL_ACCESS, TRUE, tid);
-        if local_handle.is_err() {
-            info!("Error opening local thread handle");
-        }
-        let local_handle = local_handle.unwrap();
-        let gui_handle = OpenThread(THREAD_ALL_ACCESS, TRUE, gui_tid);
-        if gui_handle.is_err() {
-            info!("Error opening gui thread handle");
-        }
-        let gui_handle = gui_handle.unwrap();
-        info!("Threads opened");
+        // let stub_module = unsafe { LoadLibraryA(PCSTR("hello.dll\0".as_ptr() as *const u8)).unwrap() };
+        // let stub_callback: HOOKPROC = unsafe { std::mem::transmute(GetProcAddress(dll_module, PCSTR("callback".as_ptr()))) };
+        // HOOK = match SetWindowsHookExW(WH_CALLWNDPROC, stub_callback, None, gui_tid) {
 
-        SuspendThread(gui_handle);
+        // Doesn't work when injected
+        // Works when Load Library is called
+        let shitter = GetProcAddress(dll_module, s!("callback")).unwrap();
+        // let dick: unsafe extern "system" fn(i32, WPARAM, LPARAM) -> LRESULT = transmute(&shitter);
+        let dick: HOOKPROC = transmute(shitter);
+        HOOK = match SetWindowsHookExW(WH_CALLWNDPROC, dick, dll_module, gui_tid) {
 
-        let mut context: CONTEXT = std::mem::zeroed();
-        context.ContextFlags = CONTEXT_FULL;
-        if GetThreadContext(local_handle, &mut context as *mut CONTEXT).as_bool() {
-            info!("GetThreadContext succeeded");
-        }
+        // Doesn't work when injected
+        // Works when LoadLibrary is used
+        // HOOK = match SetWindowsHookExW(WH_CALLWNDPROC, Some(callback), dll_module, gui_tid) {
 
-        if SetThreadContext(gui_handle, &context).as_bool() {
-            info!("SetThreadContext succeeded");
-        }
-        else {
-            info!("SetThreadContext failed! {:?}", GetLastError());
-        }
+        // Doesn't work when injected
+        // Works when LoadLibrary is used
+        // HOOK = match SetWindowsHookExW(WH_CALLWNDPROC, Some(callback), dll_module, GetCurrentThreadId()) {
 
-        ResumeThread(gui_handle);
+        // HOOK = match SetWindowsHookExW(WH_CALLWNDPROC, HOOKPROC::Some(callback), 0, gui_tid) {
+            Ok(handle) => handle,
+            Err(_) => {
+                info!("Error in SetWindowsHookEx");
+                return
+            }
+        };
 
-        if SetWindowSubclass(hwnd, Some(subclass_proc), 0, 0,).as_bool() {
-            MessageBoxA(HWND(0), s!("Woo!"), s!("hello_dll"), Default::default());
-        }
-        else {
-            MessageBoxA(HWND(0), s!("Fail!"), s!("hello_dll"), Default::default());
-        }
+        info!("Farty");
+        MessageBoxA(HWND(0), s!("Woo!"), s!("hello_dll"), Default::default());
+
+        // Get handle to main window
+        // let hwnd = find_window_by_pid(pid).unwrap();
+
+        // if SetWindowSubclass(hwnd, Some(subclass_proc), 0, 0,).as_bool() {
+        //     MessageBoxA(HWND(0), s!("Woo!"), s!("hello_dll"), Default::default());
+        // }
+        // else {
+        //     MessageBoxA(HWND(0), s!("Fail!"), s!("hello_dll"), Default::default());
+        // }
     };
+}
+
+#[no_mangle]
+unsafe extern "system" fn callback(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+    info!("Callback triggered! {}", GetCurrentThreadId());
+    if HC_ACTION as i32 == n_code {
+        let origin = w_param.0 as u32;
+        info!("by: {}", origin);
+        let fuckle = unsafe { *(l_param.0 as *const CWPSTRUCT) };
+
+        // info!("here: {}", fuckle.message);
+
+        if fuckle.message == WM_SIZING {
+            info!("Received WM_PAINT");
+        }
+    }
+
+    CallNextHookEx(HHOOK::default(), n_code, w_param, l_param)
 }
 
 // https://github.com/alexrsagen/binarymagic-tas/blob/517a0dce912192aadee75e0a147abf71d931c016/src/sys.rs

@@ -56,7 +56,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
     unsafe {
         match message {
             WM_PAINT => {
-                println!("WM_PAINT");
+                println!("WM_PAINT: {}", message);
                 ValidateRect(window, None);
                 LRESULT(0)
             }
