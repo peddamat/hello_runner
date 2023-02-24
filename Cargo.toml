@@ -3,4 +3,6 @@
 members = [
     "hello",
     "hello_runner",
+    "hello_inject",
+    "create_window"
 ]

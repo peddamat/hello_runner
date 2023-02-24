@@ -2,10 +2,57 @@ use windows::{ Win32::Foundation::*, Win32::System::SystemServices::*, };
 use windows::{ core::*, Win32::UI::WindowsAndMessaging::MessageBoxA, };
 use windows::{ Win32::Graphics::Gdi::*, Win32::UI::WindowsAndMessaging::*, };
 use windows::Win32::{UI::Shell::{DefSubclassProc, SetWindowSubclass}};
-use windows::Win32::System::Threading::GetCurrentProcessId;
-use windows::{ Win32::UI::WindowsAndMessaging::{ EnumWindows, IsWindowVisible, }, };
+use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
+use windows::{ Win32::UI::WindowsAndMessaging::{ EnumWindows, IsWindowVisible, GetWindowThreadProcessId }, };
 use std::io::{Error, ErrorKind, Result};
 use std::mem::MaybeUninit;
+use log::{info, trace};
+
+use windows::Win32::{
+    Foundation::{HANDLE, CloseHandle},
+    System::{
+        Threading::{
+            NtQueryInformationThread, OpenThread, ResumeThread, SuspendThread, THREADINFOCLASS,
+            THREAD_ACCESS_RIGHTS,
+        },
+    },
+};
+
+use windows::Win32::System::Threading::THREAD_ALL_ACCESS;
+use std::{error, mem};
+
+use windows::Win32::{
+    System::{
+        Diagnostics::Debug::{
+            GetThreadContext, ReadProcessMemory, SetThreadContext, Wow64GetThreadContext,
+            Wow64SetThreadContext, WriteProcessMemory, CONTEXT, WOW64_CONTEXT,
+        },
+        // Memory::{
+        //     VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, VirtualQueryEx,
+        //     MEMORY_BASIC_INFORMATION, PAGE_PROTECTION_FLAGS, VIRTUAL_ALLOCATION_TYPE,
+        //     VIRTUAL_FREE_TYPE,
+        // },
+        // Threading::{
+        //     GetCurrentProcess, GetCurrentProcessId, NtQueryInformationProcess, OpenProcess,
+        //     ProcessBasicInformation, ProcessWow64Information, LPTHREAD_START_ROUTINE,
+        //     PROCESSINFOCLASS, PROCESS_ACCESS_RIGHTS, PROCESS_BASIC_INFORMATION,
+        //     THREAD_CREATION_FLAGS,
+        // },
+        // WindowsProgramming::{
+        //     NtQuerySystemInformation, SystemProcessInformation, SYSTEM_INFORMATION_CLASS,
+        //     SYSTEM_PROCESS_INFORMATION,
+        // },
+    },
+};
+
+// Basically these constants are DWORDs for the context.ContextFlags to receive and assign to the CONTEXT struct.
+// Why u32? DWORD = c_ulong = u32 :)
+// Thanks to https://github.com/retep998/winapi-rs/blob/0.3/src/um/winnt.rs
+const CONTEXT_AMD64: u32 = 0x00100000;
+const CONTEXT_CONTROL: u32 = CONTEXT_AMD64 | 0x00000001;
+const CONTEXT_INTEGER: u32 = CONTEXT_AMD64 | 0x00000002;
+const CONTEXT_FLOATING_POINT: u32 = CONTEXT_AMD64 | 0x00000008;
+const CONTEXT_FULL: u32 = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_FLOATING_POINT;
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
@@ -25,10 +72,51 @@ extern "system" fn DllMain(
 }
 
 fn attach() {
+    eventlog::init("Example Log", log::Level::Trace).unwrap();
+    info!("Attach called!");
     unsafe {
+        let tid = GetCurrentThreadId();
         let pid = GetCurrentProcessId();
+        info!("Thread id: {}", tid);
+        info!("Process id: {}", pid);
 
+        // Get handle to main window
         let hwnd = find_window_by_pid(pid).unwrap();
+        info!("Found window handle");
+
+        // Get thread id
+        let mut pid = MaybeUninit::<u32>::zeroed();
+        let gui_tid = GetWindowThreadProcessId(hwnd, Some(pid.as_mut_ptr()));
+        info!("GUI Thread id: {}", gui_tid);
+
+        let local_handle = OpenThread(THREAD_ALL_ACCESS, TRUE, tid);
+        if local_handle.is_err() {
+            info!("Error opening local thread handle");
+        }
+        let local_handle = local_handle.unwrap();
+        let gui_handle = OpenThread(THREAD_ALL_ACCESS, TRUE, gui_tid);
+        if gui_handle.is_err() {
+            info!("Error opening gui thread handle");
+        }
+        let gui_handle = gui_handle.unwrap();
+        info!("Threads opened");
+
+        SuspendThread(gui_handle);
+
+        let mut context: CONTEXT = std::mem::zeroed();
+        context.ContextFlags = CONTEXT_FULL;
+        if GetThreadContext(local_handle, &mut context as *mut CONTEXT).as_bool() {
+            info!("GetThreadContext succeeded");
+        }
+
+        if SetThreadContext(gui_handle, &context).as_bool() {
+            info!("SetThreadContext succeeded");
+        }
+        else {
+            info!("SetThreadContext failed! {:?}", GetLastError());
+        }
+
+        ResumeThread(gui_handle);
 
         if SetWindowSubclass(hwnd, Some(subclass_proc), 0, 0,).as_bool() {
             MessageBoxA(HWND(0), s!("Woo!"), s!("hello_dll"), Default::default());

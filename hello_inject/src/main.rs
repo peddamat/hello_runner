@@ -10,11 +10,12 @@ fn main() {
     let syringe = Syringe::for_process(target_process);
 
     // inject the payload into the target process
+    // let injected_payload = syringe.inject("hello_inject\\target\\debug\\deps\\hello.dll").unwrap();
     let injected_payload = syringe.inject("target\\debug\\deps\\hello.dll").unwrap();
     println!("DLL injected successfully!");
 
     // do something else
-    let ten_millis = time::Duration::from_secs(10);
+    let ten_millis = time::Duration::from_secs(2);
 
     println!("Sleeping for 10 secs...");
     thread::sleep(ten_millis);
