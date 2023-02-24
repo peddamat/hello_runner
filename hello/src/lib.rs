@@ -2,7 +2,7 @@ use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA, Disabl
 use windows::{ Win32::Foundation::*, Win32::System::SystemServices::*, };
 use windows::{ core::*, Win32::UI::WindowsAndMessaging::MessageBoxA, };
 use windows::{ Win32::Graphics::Gdi::*, Win32::UI::WindowsAndMessaging::*, };
-use windows::Win32::{UI::Shell::{DefSubclassProc, SetWindowSubclass}};
+use windows::Win32::{UI::Shell::{DefSubclassProc, SetWindowSubclass, RemoveWindowSubclass}};
 use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
 use windows::{ Win32::UI::WindowsAndMessaging::{ EnumWindows, IsWindowVisible, GetWindowThreadProcessId }, };
 use std::io::{Error, ErrorKind, Result};
@@ -51,23 +51,28 @@ fn attach(dll_module: HINSTANCE) {
 
 #[no_mangle]
 unsafe extern "system" fn callback(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    if HC_ACTION as i32 == n_code {
+    // if HC_ACTION as i32 == n_code {
         let origin = w_param.0 as u32;
         let param = unsafe { *(l_param.0 as *const CWPSTRUCT) };
 
         match param.message {
-            WM_PAINT => info!("Received WM_PAINT"),
             WM_SIZING => info!("Received WM_SIZING"),
+            WM_PAINT => {
+                info!("Received WM_PAINT");
+                SetWindowSubclass(param.hwnd, Some(subclass_proc), 0, 0);
+            },
 
             _ => ()
         };
-    }
+    // }
 
     CallNextHookEx(HHOOK::default(), n_code, w_param, l_param)
 }
 
-
+#[no_mangle]
 extern "system" fn subclass_proc(window: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _subclass_id: usize, _ref_data: usize) -> LRESULT {
+    unsafe { RemoveWindowSubclass(window, Some(subclass_proc), 0); }
+
     if msg == WM_PAINT {
         unsafe {
             // MessageBoxA(HWND(0), s!("ZOMG!"), s!("hello_dll"), Default::default());
