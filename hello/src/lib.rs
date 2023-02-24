@@ -51,17 +51,16 @@ fn attach(dll_module: HINSTANCE) {
 
 #[no_mangle]
 unsafe extern "system" fn callback(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    info!("Casdfasdfalsadlback triggered! {}", GetCurrentThreadId());
     if HC_ACTION as i32 == n_code {
         let origin = w_param.0 as u32;
-        info!("by: {}", origin);
-        let fuckle = unsafe { *(l_param.0 as *const CWPSTRUCT) };
+        let param = unsafe { *(l_param.0 as *const CWPSTRUCT) };
 
-        // info!("here: {}", fuckle.message);
+        match param.message {
+            WM_PAINT => info!("Received WM_PAINT"),
+            WM_SIZING => info!("Received WM_SIZING"),
 
-        if fuckle.message == WM_SIZING {
-            info!("Received WM_PAINT");
-        }
+            _ => ()
+        };
     }
 
     CallNextHookEx(HHOOK::default(), n_code, w_param, l_param)

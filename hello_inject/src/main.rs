@@ -66,7 +66,7 @@ fn main() {
     }
 
     // do something else
-    let ten_millis = time::Duration::from_secs(30);
+    let ten_millis = time::Duration::from_secs(60);
     println!("Sleeping for 30 secs...");
     thread::sleep(ten_millis);
 
