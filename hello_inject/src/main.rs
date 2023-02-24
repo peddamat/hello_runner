@@ -30,7 +30,8 @@ fn main() {
 
     let dll_location = "..\\target\\debug\\deps\\hello.dll";
     let dll_path_str = std::ffi::CString::new(dll_location).unwrap();
-    let hw = unsafe{ FindWindowA(PCSTR(std::ptr::null()), PCSTR("Untitled - Notepad\0".as_ptr())) };
+    let hw = unsafe{ FindWindowA(PCSTR(std::ptr::null()), PCSTR("This is a sample window\0".as_ptr())) };
+    // let hw = unsafe{ FindWindowA(PCSTR(std::ptr::null()), PCSTR("Untitled - Notepad\0".as_ptr())) };
     let mut process_id = 0;
     let tid = unsafe { GetWindowThreadProcessId(hw, Some(&mut process_id)) };
 
@@ -49,20 +50,29 @@ fn main() {
                 return
             }
         };
-        let stub_callback: HOOKPROC = std::mem::transmute(GetProcAddress(stub_module, PCSTR("callback\0".as_ptr()))) ;
+        let stub_callback: HOOKPROC = std::mem::transmute(GetProcAddress(stub_module, PCSTR("CallWndProc\0".as_ptr()))) ;
 
-        let shitter = GetProcAddress(stub_module, s!("callback")).unwrap();
-        let dick: unsafe extern "system" fn(i32, WPARAM, LPARAM) -> LRESULT = std::mem::transmute(&shitter);
+        // let shitter = GetProcAddress(stub_module, s!("CallWndProc")).unwrap();
+        // let dick: unsafe extern "system" fn(i32, WPARAM, LPARAM) -> LRESULT = std::mem::transmute(&shitter);
         // let dick: HOOKPROC = std::mem::transmute(shitter);
 
-        let result = match SetWindowsHookExA(WH_CALLWNDPROC, stub_callback, stub_module, tid) {
+        let hook_wndproc = match SetWindowsHookExA(WH_CALLWNDPROC, stub_callback, stub_module, tid) {
             Ok(handle) => handle,
             Err(_) => {
-                println!("Error in SetWindowsHookEx: {:?}", GetLastError());
+                println!("Error in CallWndProc SetWindowsHookEx: {:?}", GetLastError());
                 return
             }
-
         };
+
+        let stub_callback2: HOOKPROC = std::mem::transmute(GetProcAddress(stub_module, PCSTR("GetMsgProc\0".as_ptr()))) ;
+        let hook_getmsg = match SetWindowsHookExA(WH_GETMESSAGE, stub_callback2, stub_module, tid) {
+            Ok(handle) => handle,
+            Err(_) => {
+                println!("Error in GetMsgProc SetWindowsHookEx: {:?}", GetLastError());
+                return
+            }
+        };
+
     }
 
     // do something else

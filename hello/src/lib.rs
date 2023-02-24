@@ -50,21 +50,41 @@ fn attach(dll_module: HINSTANCE) {
 }
 
 #[no_mangle]
-unsafe extern "system" fn callback(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    // if HC_ACTION as i32 == n_code {
+unsafe extern "system" fn CallWndProc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+    if HC_ACTION as i32 == n_code {
         let origin = w_param.0 as u32;
         let param = unsafe { *(l_param.0 as *const CWPSTRUCT) };
 
         match param.message {
-            WM_SIZING => info!("Received WM_SIZING"),
+            WM_SIZING => info!("CallWndProc: Received WM_SIZING"),
             WM_PAINT => {
-                info!("Received WM_PAINT");
+                info!("CallWndProc: Received WM_PAINT");
                 SetWindowSubclass(param.hwnd, Some(subclass_proc), 0, 0);
             },
 
             _ => ()
         };
-    // }
+    }
+
+    CallNextHookEx(HHOOK::default(), n_code, w_param, l_param)
+}
+
+#[no_mangle]
+unsafe extern "system" fn GetMsgProc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+    if HC_ACTION as i32 == n_code {
+        let origin = w_param.0 as u32;
+        let param = unsafe { *(l_param.0 as *const MSG) };
+
+        match param.message {
+            WM_SIZING => info!("GetMsgProc: Received WM_SIZING"),
+            WM_PAINT => {
+                info!("GetMsgProc: Received WM_PAINT");
+                SetWindowSubclass(param.hwnd, Some(subclass_proc), 0, 0);
+            },
+
+            _ => ()
+        };
+    }
 
     CallNextHookEx(HHOOK::default(), n_code, w_param, l_param)
 }
