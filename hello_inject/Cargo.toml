@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 hello = { path = "../hello" }
 dll-syringe = "0.15.0"
+log = { version = "0.4.17", features = ["std"] }
+eventlog = "0.2.2"
 
 [dependencies.windows]
 version = "0.*"
