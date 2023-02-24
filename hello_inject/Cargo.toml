@@ -8,3 +8,40 @@ edition = "2021"
 [dependencies]
 hello = { path = "../hello" }
 dll-syringe = "0.15.0"
+
+[dependencies.windows]
+version = "0.*"
+features = [
+    "Win32_Foundation",
+    "Win32_System_SystemServices",
+    "Win32_UI_WindowsAndMessaging",
+
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Shell",
+    "Win32_System_Threading",
+
+    'Win32_UI_WindowsAndMessaging',
+    'Win32_System_ProcessStatus',
+    'Win32_System_LibraryLoader',
+    'Win32_System_Threading',
+    'Win32_System_Console',
+    'Win32_System_Memory',
+    'Win32_Foundation',
+    'Win32_Security',
+
+    'Win32_System_Diagnostics_Debug',
+    'Win32_System_Diagnostics_ToolHelp',
+    "Win32_System_SystemInformation",
+
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_Security",
+    "Win32_System_Memory",
+    "Win32_System_WindowsProgramming",
+    "Win32_System_Kernel",
+    "Win32_System_SystemServices"
+
+]

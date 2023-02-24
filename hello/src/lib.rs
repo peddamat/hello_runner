@@ -7,14 +7,13 @@ use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId}
 use windows::{ Win32::UI::WindowsAndMessaging::{ EnumWindows, IsWindowVisible, GetWindowThreadProcessId }, };
 use std::io::{Error, ErrorKind, Result};
 use std::mem::MaybeUninit;
-use log::{info, trace};
+use log::{info};
 
 use windows::Win32::{
     Foundation::{BOOL, HINSTANCE, LPARAM, LRESULT, WPARAM},
     System::{SystemServices::DLL_PROCESS_ATTACH,},
     UI::WindowsAndMessaging::{
-        CallNextHookEx, SetWindowsHookExW, HHOOK, MB_OK, MSG, WH_GETMESSAGE, WH_CALLWNDPROC,
-        WM_COMMAND,
+        CallNextHookEx, SetWindowsHookExW, HHOOK, MSG, WH_GETMESSAGE, WH_CALLWNDPROC,
     },
 };
 use std::mem::transmute;
@@ -31,7 +30,7 @@ extern "system" fn DllMain(
 {
     match call_reason {
         DLL_PROCESS_ATTACH => attach(dll_module),
-        DLL_PROCESS_DETACH => (),
+        DLL_PROCESS_DETACH => info!("Detaching!"),
         _ => ()
     }
 
@@ -64,7 +63,8 @@ fn attach(dll_module: HINSTANCE) {
         let shitter = GetProcAddress(dll_module, s!("callback")).unwrap();
         // let dick: unsafe extern "system" fn(i32, WPARAM, LPARAM) -> LRESULT = transmute(&shitter);
         let dick: HOOKPROC = transmute(shitter);
-        HOOK = match SetWindowsHookExW(WH_CALLWNDPROC, dick, dll_module, gui_tid) {
+        HOOK = match SetWindowsHookExW(WH_GETMESSAGE, dick, HINSTANCE(0), gui_tid) {
+        // HOOK = match SetWindowsHookExW(WH_GETMESSAGE, dick, dll_module, gui_tid) {
 
         // Doesn't work when injected
         // Works when LoadLibrary is used
@@ -83,7 +83,8 @@ fn attach(dll_module: HINSTANCE) {
         };
 
         info!("Farty");
-        MessageBoxA(HWND(0), s!("Woo!"), s!("hello_dll"), Default::default());
+        PostMessageA(hwnd, WM_SIZING,WPARAM(0),LPARAM(0));
+        // MessageBoxA(HWND(0), s!("Woo!"), s!("hello_dll"), Default::default());
 
         // Get handle to main window
         // let hwnd = find_window_by_pid(pid).unwrap();
@@ -99,7 +100,7 @@ fn attach(dll_module: HINSTANCE) {
 
 #[no_mangle]
 unsafe extern "system" fn callback(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    info!("Callback triggered! {}", GetCurrentThreadId());
+    info!("Casdfasdfalsadlback triggered! {}", GetCurrentThreadId());
     if HC_ACTION as i32 == n_code {
         let origin = w_param.0 as u32;
         info!("by: {}", origin);
