@@ -1,24 +1,10 @@
-use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA, DisableThreadLibraryCalls};
+use log::{info};
+use windows::Win32::System::LibraryLoader::{DisableThreadLibraryCalls};
 use windows::{ Win32::Foundation::*, Win32::System::SystemServices::*, };
-use windows::{ core::*, Win32::UI::WindowsAndMessaging::MessageBoxA, };
 use windows::{ Win32::Graphics::Gdi::*, Win32::UI::WindowsAndMessaging::*, };
 use windows::Win32::{UI::Shell::{DefSubclassProc, SetWindowSubclass, RemoveWindowSubclass}};
 use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
-use windows::{ Win32::UI::WindowsAndMessaging::{ EnumWindows, IsWindowVisible, GetWindowThreadProcessId }, };
-use std::io::{Error, ErrorKind, Result};
-use std::mem::MaybeUninit;
-use log::{info};
-
-use windows::Win32::{
-    Foundation::{BOOL, HINSTANCE, LPARAM, LRESULT, WPARAM},
-    System::{SystemServices::DLL_PROCESS_ATTACH,},
-    UI::WindowsAndMessaging::{
-        CallNextHookEx, SetWindowsHookExW, HHOOK, MSG, WH_GETMESSAGE, WH_CALLWNDPROC,
-    },
-};
-use std::mem::transmute;
-
-static mut HOOK: HHOOK = HHOOK(0);
+use windows::Win32::UI::WindowsAndMessaging::{ CallNextHookEx, HHOOK, MSG };
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
@@ -30,7 +16,7 @@ extern "system" fn DllMain(
 {
     unsafe {
         match call_reason {
-            DLL_PROCESS_ATTACH => attach(dll_module),
+            DLL_PROCESS_ATTACH => attach_process(dll_module),
             DLL_PROCESS_DETACH => info!("Process detach called: {}", GetCurrentProcessId()),
             DLL_THREAD_ATTACH  => info!("Thread attach called: {}", GetCurrentThreadId()),
             DLL_THREAD_DETACH  => info!("Thread detach called: {}", GetCurrentThreadId()),
@@ -41,8 +27,9 @@ extern "system" fn DllMain(
     true
 }
 
-fn attach(dll_module: HINSTANCE) {
+fn attach_process(dll_module: HINSTANCE) {
     eventlog::init("Example Log", log::Level::Info).unwrap();
+
     unsafe {
         info!("hello.dll loaded by process: {}", GetCurrentProcessId());
         DisableThreadLibraryCalls(dll_module);
@@ -59,7 +46,7 @@ unsafe extern "system" fn CallWndProc(n_code: i32, w_param: WPARAM, l_param: LPA
             WM_SIZING => info!("CallWndProc: Received WM_SIZING"),
             WM_PAINT => {
                 info!("CallWndProc: Received WM_PAINT");
-                SetWindowSubclass(param.hwnd, Some(subclass_proc), 0, 0);
+                SetWindowSubclass(param.hwnd, Some(Subclassproc), 0, 0);
             },
 
             _ => ()
@@ -79,7 +66,7 @@ unsafe extern "system" fn GetMsgProc(n_code: i32, w_param: WPARAM, l_param: LPAR
             WM_SIZING => info!("GetMsgProc: Received WM_SIZING"),
             WM_PAINT => {
                 info!("GetMsgProc: Received WM_PAINT");
-                SetWindowSubclass(param.hwnd, Some(subclass_proc), 0, 0);
+                SetWindowSubclass(param.hwnd, Some(Subclassproc), 0, 0);
             },
 
             _ => ()
@@ -90,12 +77,11 @@ unsafe extern "system" fn GetMsgProc(n_code: i32, w_param: WPARAM, l_param: LPAR
 }
 
 #[no_mangle]
-extern "system" fn subclass_proc(window: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _subclass_id: usize, _ref_data: usize) -> LRESULT {
-    unsafe { RemoveWindowSubclass(window, Some(subclass_proc), 0); }
+extern "system" fn Subclassproc(window: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _subclass_id: usize, _ref_data: usize) -> LRESULT {
+    unsafe { RemoveWindowSubclass(window, Some(Subclassproc), 0); }
 
-    if msg == WM_PAINT {
-        unsafe {
-            // MessageBoxA(HWND(0), s!("ZOMG!"), s!("hello_dll"), Default::default());
+    match msg {
+        WM_PAINT => unsafe {
             let mut msg =  String::from("ZOMG!");
             let mut ps = PAINTSTRUCT::default();
             let psp = &mut ps as *mut PAINTSTRUCT;
@@ -110,10 +96,11 @@ extern "system" fn subclass_proc(window: HWND, msg: u32, wparam: WPARAM, lparam:
                 DT_SINGLELINE | DT_CENTER | DT_VCENTER
             );
             EndPaint(window, &ps);
-        }
 
-        return LRESULT(0);
-    }
+            return LRESULT(0);
+        },
+        _ => ()
+    };
 
     unsafe { DefSubclassProc(window, msg, wparam, lparam) }
 }
