@@ -1,8 +1,10 @@
 use windows::{
-    core::*, Win32::Foundation::*, Win32::Graphics::Gdi::*,
-    Win32::System::LibraryLoader::{GetModuleHandleA, LoadLibraryA}, Win32::UI::WindowsAndMessaging::*,
+    core::*,
+    Win32::Foundation::*,
+    Win32::Graphics::Gdi::*,
+    Win32::UI::WindowsAndMessaging::*,
+    Win32::System::LibraryLoader::{GetModuleHandleA, LoadLibraryA},
 };
-use windows::Win32::{UI::Shell::{DefSubclassProc, SetWindowSubclass}};
 
 fn main() -> Result<()> {
     unsafe {
@@ -15,7 +17,6 @@ fn main() -> Result<()> {
             hCursor: LoadCursorW(None, IDC_ARROW)?,
             hInstance: instance,
             lpszClassName: window_class,
-            // hbrBackground: CreateSolidBrush(COLORREF(0x00181018)),
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wndproc),
 
@@ -25,7 +26,7 @@ fn main() -> Result<()> {
         let atom = RegisterClassA(&wc);
         debug_assert!(atom != 0);
 
-        let handle = CreateWindowExA(
+        CreateWindowExA(
             WINDOW_EX_STYLE::default(),
             window_class,
             s!("This is a sample window"),
